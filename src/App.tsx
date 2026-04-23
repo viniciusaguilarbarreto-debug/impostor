@@ -193,13 +193,15 @@ export default function App() {
                   >
                     {/* The exact mascot image uploaded by user */}
                     <img 
-                      src="./mascot.png" 
+                      src="mascot.png" 
                       alt="Detective Mascot" 
                       className="w-full h-full object-contain drop-shadow-[0_0_50px_rgba(255,0,0,0.5)] z-10"
                       onError={(e) => {
-                        // Fallback to a high-quality detective mascot if local file is missing
-                        (e.target as any).src = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/home/25.png"; // temporary fun placeholder
-                        (e.target as any).style.opacity = "0.5";
+                        // Fallback to a visual placeholder if image not found
+                        (e.target as any).style.display = 'none';
+                        if ((e.target as any).nextSibling) {
+                          (e.target as any).nextSibling.style.display = 'flex';
+                        }
                       }}
                     />
                     
