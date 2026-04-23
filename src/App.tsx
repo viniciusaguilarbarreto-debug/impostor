@@ -120,10 +120,10 @@ export default function App() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen p-4 sm:p-8 bg-bg overflow-hidden touch-none relative">
+    <div className="flex flex-col items-center justify-center min-h-screen p-4 sm:p-6 bg-bg relative overflow-y-auto overflow-x-hidden">
       
       {/* Background stays static to save CPU */}
-      <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden opacity-40">
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden opacity-40">
         <FloatingIcon x="10%" y="20%" delay={0} icon={Target} />
         <FloatingIcon x="80%" y="15%" delay={2} icon={Brain} />
         <FloatingIcon x="70%" y="80%" delay={4} icon={Skull} />
@@ -419,14 +419,14 @@ export default function App() {
         </AnimatePresence>
       </div>
       
-      {/* Footer / Credits */}
-      <div className="fixed bottom-6 flex flex-col items-center gap-2 opacity-40 select-none z-20">
+      {/* Footer / Credits - Moved into flow for better responsiveness */}
+      <div className="mt-8 mb-4 flex flex-col items-center gap-2 opacity-40 select-none z-20 pointer-events-none">
          <div className="flex items-center gap-4">
-           <div className="w-16 h-[1px] bg-slate-600" />
+           <div className="w-12 h-[1px] bg-slate-600" />
            <span className="text-[9px] uppercase tracking-[0.4em] font-black text-slate-500 whitespace-nowrap">
              Developed by Marcus_vab
            </span>
-           <div className="w-16 h-[1px] bg-slate-600" />
+           <div className="w-12 h-[1px] bg-slate-600" />
          </div>
          <span className="text-[8px] font-black text-slate-600 tracking-[0.2em] uppercase">
            Secure Terminal v2.5.9
