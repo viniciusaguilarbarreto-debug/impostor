@@ -20,7 +20,11 @@ import {
   Coffee,
   Smartphone,
   Trophy,
-  Ghost
+  Ghost,
+  Target,
+  Brain,
+  Sword,
+  ShieldCheck
 } from 'lucide-react';
 import { CATEGORIES, WORD_BANK } from './words';
 
@@ -36,23 +40,21 @@ interface GameState {
 
 const FloatingIcon = ({ delay = 0, x = "0%", y = "0%", icon: Icon }: any) => (
   <motion.div
-    initial={{ opacity: 0, scale: 0 }}
+    initial={{ opacity: 0 }}
     animate={{ 
       opacity: [0, 0.4, 0],
-      scale: [0.5, 1.2, 0.5],
-      x: ["-10%", "10%", "-10%"],
-      y: ["-10%", "10%", "-10%"],
+      scale: [0.8, 1.2, 0.8],
     }}
     transition={{ 
-      duration: 8 + Math.random() * 4, 
+      duration: 12, 
       repeat: Infinity, 
       delay,
-      ease: "easeInOut"
+      ease: "linear"
     }}
-    style={{ left: x, top: y }}
-    className="absolute pointer-events-none text-primary/40 blur-[1px]"
+    style={{ left: x, top: y, willChange: 'transform' }}
+    className="absolute pointer-events-none text-primary/20 blur-[1px]"
   >
-    <Icon size={40 + Math.random() * 40} />
+    <Icon size={32} />
   </motion.div>
 );
 
@@ -111,143 +113,173 @@ export default function App() {
     }));
   };
 
+  const stageVariants = {
+    initial: { opacity: 0, y: 10 },
+    animate: { opacity: 1, y: 0, transition: { duration: 0.2, ease: "easeOut" } },
+    exit: { opacity: 0, y: -10, transition: { duration: 0.15, ease: "easeIn" } }
+  };
+
   return (
     <div className="flex items-center justify-center min-h-screen p-4 sm:p-8 bg-bg overflow-hidden touch-none relative">
       
-      {/* Interactive Background with Floating Icons */}
-      <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
-        <FloatingIcon x="10%" y="20%" delay={0} icon={Search} />
-        <FloatingIcon x="80%" y="15%" delay={2} icon={VenetianMask} />
+      {/* Background stays static to save CPU */}
+      <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden opacity-40">
+        <FloatingIcon x="10%" y="20%" delay={0} icon={Target} />
+        <FloatingIcon x="80%" y="15%" delay={2} icon={Brain} />
         <FloatingIcon x="70%" y="80%" delay={4} icon={Skull} />
-        <FloatingIcon x="15%" y="75%" delay={1} icon={Lock} />
-        <FloatingIcon x="50%" y="10%" delay={3} icon={Globe} />
-        <FloatingIcon x="40%" y="90%" delay={5} icon={Ghost} />
+        <FloatingIcon x="15%" y="75%" delay={1} icon={Search} />
+        <FloatingIcon x="50%" y="30%" delay={3} icon={VenetianMask} />
         
-        <div className="absolute top-10 right-10 w-64 h-64 bg-primary/20 rounded-full blur-glow" />
-        <div className="absolute bottom-10 left-10 w-80 h-80 bg-accent/20 rounded-full blur-glow" style={{ animationDelay: '2s' }} />
+        <div className="absolute top-10 right-10 w-64 h-64 bg-primary/5 rounded-full blur-[100px]" />
+        <div className="absolute bottom-10 left-10 w-80 h-80 bg-accent/5 rounded-full blur-[100px]" />
       </div>
 
-      <div className="w-full max-w-md bg-card/85 backdrop-blur-2xl rounded-[40px] p-8 shadow-2xl border border-white/10 relative z-10 overflow-hidden">
+      <div className="w-full max-w-md bg-card/95 backdrop-blur-xl rounded-[40px] p-8 shadow-[0_0_50px_rgba(0,0,0,0.5)] border border-white/5 relative z-10 overflow-hidden">
         
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode="wait" initial={false}>
           {game.phase === 'landing' && (
             <motion.div
               key="landing"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="flex flex-col items-center text-center space-y-12 py-6"
+              variants={stageVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="flex flex-col items-center text-center space-y-4 py-2 relative"
             >
-              <div className="relative">
-                <motion.div
-                  initial={{ scale: 0, rotate: -45 }}
-                  animate={{ scale: 1, rotate: 0 }}
-                  transition={{ type: "spring", stiffness: 260, damping: 20 }}
-                  className="w-24 h-24 bg-gradient-to-tr from-primary to-accent rounded-[32px] flex items-center justify-center shadow-2xl shadow-primary/50 relative z-10"
-                >
-                  <VenetianMask className="w-12 h-12 text-white" />
-                </motion.div>
-                <div className="absolute -top-3 -right-3 w-10 h-10 bg-amber-500 rounded-2xl flex items-center justify-center shadow-lg border-2 border-card animate-bounce">
-                  <Search className="w-5 h-5 text-white" />
+              {/* Top Logo from Image */}
+              <div className="flex flex-col items-center scale-90 mb-4">
+                <div className="relative w-16 h-16 mb-2">
+                  <div className="absolute inset-0 border-2 border-primary rounded-full" />
+                  <div className="absolute inset-2 border-2 border-primary rounded-full animate-pulse" />
+                  <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-4 h-1 bg-primary" />
+                  <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-4 h-1 bg-primary" />
+                  <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-1 h-4 bg-primary" />
+                  <div className="absolute top-1/2 -right-1 -translate-y-1/2 w-1 h-4 bg-primary" />
+                  <Skull className="absolute inset-0 m-auto w-8 h-8 text-white" />
+                </div>
+                <h1 className="text-3xl font-black text-white tracking-widest">IMPOSTOR</h1>
+                <p className="text-[8px] font-black tracking-[0.2em] text-white/60">
+                  DESCUBRA. DESCONFIE. <span className="text-primary">SOBREVIVA.</span>
+                </p>
+              </div>
+
+              <div className="flex w-full items-center justify-between gap-4 px-2">
+                {/* Left Side Menu Icons from Image */}
+                <div className="flex flex-col gap-8 items-center py-4">
+                   {[
+                     { icon: Eye, label: "OBSERVE", sub: "CADA DETALHE" },
+                     { icon: Brain, label: "ANALISE", sub: "COM INTELIGÊNCIA" },
+                     { icon: Sword, label: "DESCUBRA", sub: "O IMPOSTOR" }
+                   ].map((item, idx) => (
+                     <div key={idx} className="flex flex-col items-center gap-1">
+                        <div className="w-10 h-10 rounded-full bg-card border-2 border-white/10 flex items-center justify-center relative shadow-lg">
+                           <item.icon className={`w-5 h-5 ${idx === 2 ? 'text-primary' : 'text-white'}`} />
+                           {idx === 2 && <div className="absolute inset-[-4px] border border-primary/40 rounded-full animate-ping" />}
+                        </div>
+                        <div className="flex flex-col items-center">
+                          <span className="text-[6px] font-black text-white leading-tight">{item.label}</span>
+                          <span className="text-[5px] text-slate-500 font-bold leading-tight">{item.sub}</span>
+                        </div>
+                     </div>
+                   ))}
+                </div>
+
+                {/* Main Mascot Area */}
+                <div className="flex-1 flex justify-center relative">
+                  <motion.div
+                    initial={{ scale: 0.8 }}
+                    animate={{ scale: 1 }}
+                    className="w-56 h-72 flex items-center justify-center relative"
+                  >
+                    {/* The exact mascot image uploaded by user */}
+                    <img 
+                      src="./mascot.png" 
+                      alt="Detective Mascot" 
+                      className="w-full h-full object-contain drop-shadow-[0_0_50px_rgba(255,0,0,0.5)] z-10"
+                      onError={(e) => {
+                        // Fallback to a high-quality detective mascot if local file is missing
+                        (e.target as any).src = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/home/25.png"; // temporary fun placeholder
+                        (e.target as any).style.opacity = "0.5";
+                      }}
+                    />
+                    
+                    {/* Visual Floor from Image */}
+                    <div className="absolute -bottom-4 w-48 h-8 bg-primary/20 blur-[20px] rounded-full" />
+                  </motion.div>
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.3 }}
-                >
-                  <h2 className="text-accent font-black tracking-[0.4em] uppercase text-[10px] mb-2">The Hidden Agent Game</h2>
-                  <h1 className="text-5xl font-black text-white tracking-tighter leading-none">
-                    Quem é o<br/>
-                    <span className="text-primary italic">Impostor?</span>
-                  </h1>
-                </motion.div>
-                <motion.p 
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.5 }}
-                  className="text-slate-400 text-sm max-w-[240px] mx-auto font-semibold leading-relaxed"
-                >
-                  Reúna seus amigos, identifique o infiltrado e proteja a base.
-                </motion.p>
-              </div>
-
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.7 }}
-                className="w-full flex flex-col gap-6"
-              >
-                <button 
+              {/* Start Button */}
+              <div className="w-full relative z-10 pt-4 px-6">
+                <motion.button 
+                  whileTap={{ scale: 0.96 }}
                   onClick={() => setGame(prev => ({ ...prev, phase: 'setup' }))}
-                  className="w-full bg-primary hover:bg-primary/90 text-white font-black py-6 rounded-3xl shadow-2xl shadow-primary/40 flex items-center justify-center gap-3 group transition-all active:scale-95 text-lg"
+                  className="w-full bg-primary hover:bg-primary/90 text-white font-black py-5 rounded-2xl shadow-[0_0_30px_rgba(255,0,0,0.4)] flex items-center justify-center gap-3 active:brightness-110 transition-all text-xl uppercase tracking-widest border-b-4 border-black/30"
                 >
                   <Play className="w-6 h-6 fill-white" />
-                  INICIAR MISSÃO
-                </button>
-              </motion.div>
+                  INICIAR JOGO
+                </motion.button>
+              </div>
             </motion.div>
           )}
 
           {game.phase === 'setup' && (
             <motion.div
               key="setup"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="space-y-8 flex flex-col items-center text-center"
+              variants={stageVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="space-y-10 flex flex-col items-center text-center"
             >
-              <div className="w-16 h-16 bg-slate-800/50 rounded-2xl flex items-center justify-center border border-white/5">
-                <Dna className="w-8 h-8 text-primary" />
+              <div className="w-16 h-16 bg-slate-800 rounded-2xl flex items-center justify-center border border-white/5">
+                <Users className="w-8 h-8 text-primary" />
               </div>
               
               <div>
-                <h1 className="text-3xl font-black tracking-tight mb-2 italic uppercase">Configurações</h1>
-                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest opacity-60">Parâmetros de Missão</p>
+                <h1 className="text-3xl font-black tracking-tight mb-2 italic uppercase">Equipe</h1>
+                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest opacity-60">Selecione o contingente</p>
               </div>
 
-              <div className="w-full space-y-4">
-                {/* Player Count */}
-                <div className="bg-slate-800 p-8 rounded-[32px] border border-white/10 flex flex-col gap-6 shadow-inner">
-                   <div className="flex items-center gap-3 text-slate-500 text-[12px] font-black uppercase tracking-[0.2em] pl-1 justify-center">
-                      <Users size={16} className="text-primary" /> Equipe de Agentes
-                   </div>
+              <div className="w-full">
+                <div className="bg-slate-800 p-8 rounded-[32px] border border-white/5 flex flex-col gap-6 shadow-inner">
                    <div className="flex items-center justify-between px-2">
-                      <button 
+                      <motion.button 
+                        whileTap={{ scale: 0.85 }}
                         onClick={() => setGame(prev => ({ ...prev, playerCount: Math.max(3, prev.playerCount - 1) }))}
-                        className="w-14 h-14 rounded-2xl bg-slate-700 flex items-center justify-center hover:bg-slate-600 active:scale-90 transition-all text-3xl font-black text-white shadow-lg shadow-black/20"
+                        className="w-14 h-14 rounded-2xl bg-slate-700 flex items-center justify-center text-3xl font-black text-white"
                       >
                         -
-                      </button>
+                      </motion.button>
                       <div className="flex flex-col items-center">
-                        <span className="text-6xl font-black text-accent leading-none drop-shadow-[0_0_15px_rgba(56,189,248,0.3)]">{game.playerCount}</span>
+                        <span className="text-6xl font-black text-accent leading-none">{game.playerCount}</span>
                         <span className="text-[10px] font-black text-slate-500 mt-2 uppercase tracking-widest">Agentes</span>
                       </div>
-                      <button 
+                      <motion.button 
+                        whileTap={{ scale: 0.85 }}
                         onClick={() => setGame(prev => ({ ...prev, playerCount: Math.min(20, prev.playerCount + 1) }))}
-                        className="w-14 h-14 rounded-2xl bg-slate-700 flex items-center justify-center hover:bg-slate-600 active:scale-90 transition-all text-3xl font-black text-white shadow-lg shadow-black/20"
+                        className="w-14 h-14 rounded-2xl bg-slate-700 flex items-center justify-center text-3xl font-black text-white"
                       >
                         +
-                      </button>
+                      </motion.button>
                    </div>
                 </div>
               </div>
 
-              <button 
+              <motion.button 
+                whileTap={{ scale: 0.96 }}
                 onClick={initGame}
-                className="w-full bg-primary hover:bg-primary/90 text-white font-black py-6 rounded-3xl shadow-xl shadow-primary/30 flex items-center justify-center gap-3 transition-all active:scale-95 text-lg"
+                className="w-full bg-primary hover:bg-primary/90 text-white font-black py-6 rounded-3xl shadow-xl flex items-center justify-center gap-3 transition-all text-lg uppercase tracking-widest"
               >
                 DISTRIBUIR ORDENS
-                <ChevronRight className="w-6 h-6" />
-              </button>
+                <ChevronRight className="w-6 h-6 " />
+              </motion.button>
 
               <button 
                 onClick={() => setGame(prev => ({ ...prev, phase: 'landing' }))}
-                className="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] hover:text-slate-400 transition-colors"
+                className="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] p-2"
               >
-                Abortar Operação
+                Abortar
               </button>
             </motion.div>
           )}
@@ -255,142 +287,131 @@ export default function App() {
           {game.phase === 'transition' && (
             <motion.div
               key="transition"
-              initial={{ opacity: 0, x: 40 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -40 }}
+              variants={stageVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
               className="space-y-8 flex flex-col items-center text-center py-6"
             >
               <div className="px-5 py-2 bg-slate-800 rounded-full text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">
-                Canal Crítico: Agente
+                Agente Identificado
               </div>
               
               <h2 className="text-7xl font-black text-white italic tracking-tighter">#{game.currentPlayerIndex + 1}</h2>
               
-              <motion.div 
-                animate={{ scale: [1, 1.03, 1] }}
-                transition={{ duration: 2, repeat: Infinity }}
-                className="p-10 bg-amber-500/10 border border-amber-500/30 rounded-[40px] space-y-4 shadow-2xl"
-              >
+              <div className="p-10 bg-amber-500/10 border border-amber-500/30 rounded-[40px] space-y-4">
                 <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto" />
-                <div>
-                  <h3 className="text-amber-500 font-black uppercase text-xs tracking-widest mb-3">Protocolo de Privacidade</h3>
-                  <p className="text-slate-400 text-xs leading-relaxed font-bold uppercase tracking-tight">
-                    Transfira o terminal para o próximo agente em silêncio.
-                  </p>
-                </div>
-              </motion.div>
+                <p className="text-slate-400 text-xs leading-relaxed font-bold uppercase tracking-tight">
+                  Transfira o terminal para o próximo agente em segredo.
+                </p>
+              </div>
 
-              <button 
+              <motion.button 
+                whileTap={{ scale: 0.96 }}
                 onClick={() => setGame(prev => ({ ...prev, phase: 'reveal' }))}
-                className="w-full bg-white text-bg font-black py-6 rounded-3xl shadow-2xl flex items-center justify-center gap-3 active:scale-95 transition-all text-lg uppercase"
+                className="w-full bg-white text-bg font-black py-6 rounded-3xl shadow-2xl flex items-center justify-center gap-3 text-lg uppercase tracking-widest"
               >
                 <Eye className="w-6 h-6" />
-                Descriptografar
-              </button>
+                DESCRIPTOGRAFAR
+              </motion.button>
             </motion.div>
           )}
 
           {game.phase === 'reveal' && (
             <motion.div
               key="reveal"
-              initial={{ opacity: 0, scale: 1.1 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, y: -40 }}
-              className="space-y-10 flex flex-col items-center text-center py-4"
+              variants={stageVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="space-y-8 flex flex-col items-center text-center py-4"
             >
-              <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">Seu Código Operacional</h2>
+              <div className="px-5 py-2 bg-primary/20 border border-primary/30 rounded-full text-[10px] font-black text-primary uppercase tracking-[0.3em]">
+                Status: {game.roles[game.currentPlayerIndex] === 'IMPOSTOR' ? 'AMEAÇA DETECTADA' : 'AGENTE VERIFICADO'}
+              </div>
 
               <motion.div 
                 layoutId="secret-card"
-                className={`w-full py-20 px-6 rounded-[40px] border-4 border-dashed relative overflow-hidden flex flex-col items-center justify-center gap-8 shadow-2xl ${
+                className={`w-full py-20 px-6 rounded-[40px] border-4 border-dashed relative overflow-hidden flex flex-col items-center justify-center gap-8 ${
                   game.roles[game.currentPlayerIndex] === 'IMPOSTOR' 
-                    ? 'border-danger bg-danger/10 shadow-danger/20' 
-                    : 'border-primary bg-primary/10 shadow-primary/20'
+                    ? 'border-primary bg-primary/10' 
+                    : 'border-accent bg-accent/10'
                 }`}
               >
-                <div className="absolute top-0 left-0 w-full h-full opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]" />
-                
                 {game.roles[game.currentPlayerIndex] === 'IMPOSTOR' ? (
                   <>
-                    <motion.div
-                      animate={{ scale: [1, 1.25, 1], rotate: [0, 10, -10, 0] }}
-                      transition={{ duration: 0.4, repeat: Infinity }}
-                    >
-                      <Skull className="w-20 h-20 text-danger" />
-                    </motion.div>
-                    <span className="text-4xl font-black text-danger tracking-tighter uppercase italic leading-none text-center">
-                      ALVO IDENTIFICADO:<br/>VOCÊ É O IMPOSTOR
+                    <Target className="w-20 h-20 text-primary animate-pulse" />
+                    <span className="text-4xl font-black text-primary tracking-tighter uppercase italic leading-tight text-center">
+                      ALVO:<br/>IMPOSTOR
                     </span>
                   </>
                 ) : (
                   <>
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
-                    >
-                      <Star className="w-20 h-20 text-accent fill-accent" />
-                    </motion.div>
-                    <span className="text-6xl font-black text-accent tracking-tighter uppercase italic leading-none">
+                    <ShieldCheck className="w-20 h-20 text-accent" />
+                    <span className="text-5xl font-black text-accent tracking-tighter uppercase italic leading-none">
                       {game.roles[game.currentPlayerIndex]}
                     </span>
                   </>
                 )}
               </motion.div>
 
-              <div className="bg-slate-900/50 p-6 rounded-2xl text-[10px] text-slate-400 font-black leading-relaxed border border-white/5 uppercase tracking-wider">
+              <div className="bg-slate-900 border border-white/5 p-6 rounded-3xl text-[10px] text-slate-400 font-bold leading-relaxed uppercase tracking-widest italic">
                 {game.roles[game.currentPlayerIndex] === 'IMPOSTOR' 
-                  ? "❌ VOCÊ NÃO TEM O CÓDIGO. ESCUTE OS OUTROS AGENTES, MAPEIE O TEMA E INFILTRE-SE SEM SER DETECTADO."
-                  : "✅ VOCÊ TEM O CÓDIGO. EMITA UM SINAL DISCRETO. SEJA VAGO O SUFICIENTE PARA O IMPOSTOR NÃO DESCOBRIR O TEMA."}
+                  ? "OBSERVAR. ANALISAR. ELIMINAR."
+                  : "PROTEJA O CÓDIGO. NÃO SEJA DETECTADO."}
               </div>
 
-              <button 
+              <motion.button 
+                whileTap={{ scale: 0.96 }}
                 onClick={handleNextPlayer}
-                className="w-full bg-slate-800 hover:bg-slate-700 text-white font-black py-6 rounded-3xl active:scale-95 transition-all border border-white/10 text-lg uppercase shadow-xl"
+                className="w-full bg-slate-100 text-bg font-black py-6 rounded-2xl text-lg uppercase tracking-widest shadow-xl"
               >
-                CONFIRMAR LEITURA
-              </button>
+                ORDEM RECEBIDA
+              </motion.button>
             </motion.div>
           )}
 
           {game.phase === 'debate' && (
             <motion.div
               key="debate"
-              initial={{ opacity: 0, y: 40 }}
-              animate={{ opacity: 1, y: 0 }}
+              variants={stageVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
               className="space-y-12 flex flex-col items-center text-center py-4"
             >
-              <div className="w-20 h-20 bg-accent/20 rounded-full flex items-center justify-center animate-pulse shadow-2xl shadow-accent/20">
-                <MessageSquare className="w-10 h-10 text-accent fill-accent" />
+              <div className="w-20 h-20 bg-primary/20 rounded-full flex items-center justify-center shadow-[0_0_40px_rgba(255,0,0,0.2)] border border-primary/40 relative">
+                <Target className="w-10 h-10 text-primary animate-pulse" />
+                <div className="absolute inset-0 border-2 border-primary/20 rounded-full animate-ping" />
               </div>
               
               <div className="space-y-8">
-                <h1 className="text-5xl font-black uppercase italic tracking-tighter leading-none">INTERROGATÓRIO<br/><span className="text-accent underline decoration-primary underline-offset-8">ATIVADO</span></h1>
+                <h1 className="text-5xl font-black uppercase italic tracking-tighter leading-tight">DESCUBRA O<br/><span className="text-primary underline decoration-white underline-offset-8">IMPOSTOR</span></h1>
                 
                 <div className="flex flex-col gap-3 text-left">
                   {[
-                    "CADA AGENTE PROFERE UMA ÚNICA PALAVRA DE SINAL.",
-                    "DISCUTAM COMPORTAMENTOS SUSPEITOS E ANOMALIAS.",
-                    "IDENTIFIQUEM O IMPOSTOR E ELIMINEM A AMEAÇA!"
-                  ].map((step, i) => (
-                    <div key={i} className="flex gap-6 items-center bg-slate-800/60 backdrop-blur-md p-5 rounded-[24px] border border-white/5 shadow-inner">
-                      <span className="bg-primary text-white w-10 h-10 rounded-2xl flex-shrink-0 flex items-center justify-center font-black italic shadow-xl shadow-primary/30 text-lg">
+                    "OBSERVE CADA DETALHE DO RELATO.",
+                    "ANALISE COM INTELIGÊNCIA AS RESPOSTAS.",
+                    "DESCONFIE DE TODOS. SOBREVIVA."
+                   ].map((step, i) => (
+                    <div key={i} className="flex gap-4 items-center bg-slate-900 p-5 rounded-[24px] border border-white/5">
+                      <span className="bg-primary text-white w-8 h-8 rounded-xl flex-shrink-0 flex items-center justify-center font-black italic">
                          {i+1}
                       </span>
-                      <p className="text-slate-300 text-[10px] font-black leading-tight uppercase tracking-widest">{step}</p>
+                      <p className="text-slate-300 text-[10px] font-black uppercase tracking-tight leading-none">{step}</p>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="w-full pt-4 flex flex-col gap-4">
-                <button 
-                  onClick={resetGame}
-                  className="w-full bg-primary py-6 rounded-[32px] font-black flex items-center justify-center gap-3 active:scale-95 transition-all shadow-2xl shadow-primary/30 text-lg uppercase tracking-widest"
-                >
-                  <RefreshCcw className="w-6 h-6" />
-                  REINICIAR PROTOCOLO
-                </button>
-              </div>
+              <motion.button 
+                whileTap={{ scale: 0.96 }}
+                onClick={resetGame}
+                className="w-full bg-primary py-6 rounded-2xl font-black flex items-center justify-center gap-3 shadow-2xl text-lg uppercase tracking-widest"
+              >
+                <RefreshCcw className="w-6 h-6" />
+                REINICIAR BUSCA
+              </motion.button>
             </motion.div>
           )}
         </AnimatePresence>

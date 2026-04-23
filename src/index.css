@@ -4,11 +4,12 @@
 @theme {
   --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
   
-  --color-primary: #6366f1;
-  --color-bg: #0f172a;
-  --color-card: #1e293b;
-  --color-accent: #38bdf8;
-  --color-danger: #ef4444;
+  --color-primary: #ff0000; /* Vermelho Alvo */
+  --color-bg: #040404;     /* Preto Espacial */
+  --color-card: #121212;   /* Grafite Escuro */
+  --color-accent: #00fbff;  /* Ciano Visor */
+  --color-danger: #ff0000;
+  --color-detective: #c18c5d; /* Marrom Investigativo */
 }
 
 @layer base {
@@ -16,6 +17,26 @@
     @apply bg-bg text-slate-50 font-sans antialiased select-none;
     overflow: hidden;
   }
+}
+
+@layer utilities {
+  .textShadow-neon {
+    text-shadow: 0 0 10px rgba(255, 0, 0, 0.8), 0 0 20px rgba(255, 0, 0, 0.4);
+  }
+  .scan-effect {
+    position: absolute;
+    width: 100%;
+    height: 4px;
+    background: linear-gradient(to bottom, transparent, var(--color-accent), transparent);
+    animation: scan-line 3s linear infinite;
+    pointer-events: none;
+  }
+}
+
+@keyframes scan-line {
+  0% { top: 0%; opacity: 0; }
+  50% { opacity: 0.5; }
+  100% { top: 100%; opacity: 0; }
 }
 
 @keyframes float {
