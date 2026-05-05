@@ -24,18 +24,35 @@ import {
   Target,
   Brain,
   Sword,
-  ShieldCheck
+  ShieldCheck,
+  Megaphone,
+  UserX,
+  Rocket
 } from 'lucide-react';
 import { CATEGORIES, WORD_BANK } from './words';
 
-type GamePhase = 'landing' | 'setup' | 'transition' | 'reveal' | 'debate';
+type GameVersion = 1 | 2;
+type GamePhase = 'landing' | 'setup' | 'transition' | 'reveal' | 'debate' | 'vote' | 'ejection' | 'gameOver';
+
+interface Player {
+  id: number;
+  role: string;
+  isAlive: boolean;
+}
 
 interface GameState {
+  version: GameVersion;
   playerCount: number;
+  impostorCount: number;
   word: string;
   roles: string[];
+  players: Player[];
+  voterIndex: number; // For manual sequential voting if needed, but let's stick to a pool of votes
+  playerVotes: Record<number, number | null>; // voterId -> votedTargetId
   currentPlayerIndex: number;
   phase: GamePhase;
+  lastEjected?: Player;
+  winner?: 'crew' | 'impostor';
 }
 
 const FloatingIcon = ({ delay = 0, x = "0%", y = "0%", icon: Icon }: any) => (
@@ -60,36 +77,68 @@ const FloatingIcon = ({ delay = 0, x = "0%", y = "0%", icon: Icon }: any) => (
 
 export default function App() {
   const [game, setGame] = useState<GameState>({
+    version: 1,
     playerCount: 3,
+    impostorCount: 1,
     word: '',
     roles: [],
+    players: [],
+    voterIndex: 0,
+    playerVotes: {},
     currentPlayerIndex: 0,
     phase: 'landing'
   });
+
+  const [activeVoterId, setActiveVoterId] = useState<number | null>(null);
 
   const initGame = useCallback(() => {
     const pool = WORD_BANK;
     const randomWord = pool[Math.floor(Math.random() * pool.length)];
     
-    // Improved Randomization: Shuffle indices
-    const indices = Array.from({ length: game.playerCount }, (_, i) => i);
+    const count = game.playerCount;
+    // Determine actual impostor count for v2 (could be random)
+    let actualImpostorCount = game.impostorCount;
+    if (game.version === 2 && game.impostorCount === -1) {
+      // Random mode: Between 1 and (playerCount-1)/2, minimum 1
+      actualImpostorCount = Math.max(1, Math.floor(Math.random() * (Math.floor((count - 1) / 2))) + 1);
+    } else if (game.version === 1) {
+      actualImpostorCount = 1;
+    }
+
+    const indices = Array.from({ length: count }, (_, i) => i);
     for (let i = indices.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [indices[i], indices[j]] = [indices[j], indices[i]];
     }
     
-    const impostorIndex = indices[0];
-    const newRoles = Array(game.playerCount).fill(randomWord);
-    newRoles[impostorIndex] = "IMPOSTOR";
+    const impostorIndices = indices.slice(0, actualImpostorCount);
+    const newRoles = Array(count).fill(randomWord);
+    impostorIndices.forEach(idx => {
+      newRoles[idx] = "IMPOSTOR";
+    });
+
+    const newPlayers: Player[] = newRoles.map((role, idx) => ({
+      id: idx + 1,
+      role,
+      isAlive: true
+    }));
+
+    const initialVotes: Record<number, number | null> = {};
+    newPlayers.forEach(p => {
+      initialVotes[p.id] = null;
+    });
 
     setGame(prev => ({
       ...prev,
       word: randomWord,
       roles: newRoles,
+      players: newPlayers,
+      playerVotes: initialVotes,
+      voterIndex: 0,
       currentPlayerIndex: 0,
       phase: 'transition'
     }));
-  }, [game.playerCount]);
+  }, [game.playerCount, game.impostorCount, game.version]);
 
   const handleNextPlayer = () => {
     if (game.currentPlayerIndex < game.playerCount - 1) {
@@ -108,8 +157,93 @@ export default function App() {
       ...prev,
       word: '',
       roles: [],
+      players: [],
+      playerVotes: {},
+      voterIndex: 0,
       currentPlayerIndex: 0,
-      phase: 'setup'
+      phase: 'setup',
+      lastEjected: undefined,
+      winner: undefined
+    }));
+  };
+
+  const handleVote = (voterId: number, targetId: number) => {
+    setGame(prev => ({
+      ...prev,
+      playerVotes: {
+        ...prev.playerVotes,
+        [voterId]: targetId
+      }
+    }));
+  };
+
+  const clearVote = (voterId: number) => {
+    setGame(prev => ({
+      ...prev,
+      playerVotes: {
+        ...prev.playerVotes,
+        [voterId]: null
+      }
+    }));
+  };
+
+  const handleConfirmVote = () => {
+    // Count votes
+    const voteCounts: Record<number, number> = {};
+    Object.entries(game.playerVotes).forEach(([_, targetId]) => {
+      if (targetId !== null) {
+        const id = Number(targetId);
+        voteCounts[id] = (voteCounts[id] || 0) + 1;
+      }
+    });
+
+    // Find player with most votes
+    let maxVotes = 0;
+    let ejectedId = -1;
+    let tie = false;
+
+    Object.entries(voteCounts).forEach(([id, count]) => {
+      if (count > maxVotes) {
+        maxVotes = count;
+        ejectedId = parseInt(id);
+        tie = false;
+      } else if (count === maxVotes) {
+        tie = true;
+      }
+    });
+
+    if (tie || ejectedId === -1) {
+      // No one ejected or tie
+      setGame(prev => ({ ...prev, phase: 'debate', playerVotes: {} }));
+      // Or maybe show a message "Empate, ninguém ejetado"
+      return;
+    }
+
+    const player = game.players.find(p => p.id === ejectedId);
+    if (!player) return;
+
+    const updatedPlayers = game.players.map(p => 
+      p.id === ejectedId ? { ...p, isAlive: false } : p
+    );
+
+    const remainingImpostors = updatedPlayers.filter(p => p.isAlive && p.role === 'IMPOSTOR').length;
+    const remainingCrew = updatedPlayers.filter(p => p.isAlive && p.role !== 'IMPOSTOR').length;
+
+    let winner: 'crew' | 'impostor' | undefined = undefined;
+    if (remainingImpostors === 0) {
+      winner = 'crew';
+    } else if (remainingImpostors >= remainingCrew) {
+      winner = 'impostor';
+    }
+
+    setGame(prev => ({
+      ...prev,
+      players: updatedPlayers,
+      lastEjected: player,
+      phase: 'ejection',
+      winner,
+      // Clear votes for next round
+      playerVotes: Object.fromEntries(updatedPlayers.filter(p => p.isAlive).map(p => [p.id, null]))
     }));
   };
 
@@ -211,15 +345,24 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Start Button */}
-              <div className="w-full relative z-10 pt-4 px-6">
+              {/* Version Selection */}
+              <div className="w-full relative z-10 pt-4 px-6 flex flex-col gap-4">
                 <motion.button 
                   whileTap={{ scale: 0.96 }}
-                  onClick={() => setGame(prev => ({ ...prev, phase: 'setup' }))}
+                  onClick={() => setGame(prev => ({ ...prev, phase: 'setup', version: 1 }))}
+                  className="w-full bg-slate-800 hover:bg-slate-700 text-white font-black py-5 rounded-2xl shadow-xl flex items-center justify-center gap-3 active:brightness-110 transition-all text-xl uppercase tracking-widest border-b-4 border-black/30"
+                >
+                  <Gamepad2 className="w-6 h-6" />
+                  VERSÃO 1.0
+                </motion.button>
+                
+                <motion.button 
+                  whileTap={{ scale: 0.96 }}
+                  onClick={() => setGame(prev => ({ ...prev, phase: 'setup', version: 2 }))}
                   className="w-full bg-primary hover:bg-primary/90 text-white font-black py-5 rounded-2xl shadow-[0_0_30px_rgba(255,0,0,0.4)] flex items-center justify-center gap-3 active:brightness-110 transition-all text-xl uppercase tracking-widest border-b-4 border-black/30"
                 >
-                  <Play className="w-6 h-6 fill-white" />
-                  INICIAR JOGO
+                  <Rocket className="w-6 h-6" />
+                  VERSÃO 2.0
                 </motion.button>
               </div>
             </motion.div>
@@ -240,32 +383,70 @@ export default function App() {
               
               <div>
                 <h1 className="text-3xl font-black tracking-tight mb-2 italic uppercase">Equipe</h1>
-                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest opacity-60">Selecione o contingente</p>
+                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest opacity-60">
+                  {game.version === 2 ? 'Parâmetros da Nave' : 'Selecione o contingente'}
+                </p>
               </div>
 
-              <div className="w-full">
-                <div className="bg-slate-800 p-8 rounded-[32px] border border-white/5 flex flex-col gap-6 shadow-inner">
+              <div className="w-full space-y-4">
+                <div className="bg-slate-800 p-6 rounded-[32px] border border-white/5 flex flex-col gap-4 shadow-inner">
                    <div className="flex items-center justify-between px-2">
                       <motion.button 
                         whileTap={{ scale: 0.85 }}
                         onClick={() => setGame(prev => ({ ...prev, playerCount: Math.max(3, prev.playerCount - 1) }))}
-                        className="w-14 h-14 rounded-2xl bg-slate-700 flex items-center justify-center text-3xl font-black text-white"
+                        className="w-12 h-12 rounded-xl bg-slate-700 flex items-center justify-center text-2xl font-black text-white"
                       >
                         -
                       </motion.button>
                       <div className="flex flex-col items-center">
-                        <span className="text-6xl font-black text-accent leading-none">{game.playerCount}</span>
-                        <span className="text-[10px] font-black text-slate-500 mt-2 uppercase tracking-widest">Agentes</span>
+                        <span className="text-5xl font-black text-accent leading-none">{game.playerCount}</span>
+                        <span className="text-[9px] font-black text-slate-500 mt-1 uppercase tracking-widest">Agentes</span>
                       </div>
                       <motion.button 
                         whileTap={{ scale: 0.85 }}
                         onClick={() => setGame(prev => ({ ...prev, playerCount: Math.min(20, prev.playerCount + 1) }))}
-                        className="w-14 h-14 rounded-2xl bg-slate-700 flex items-center justify-center text-3xl font-black text-white"
+                        className="w-12 h-12 rounded-xl bg-slate-700 flex items-center justify-center text-2xl font-black text-white"
                       >
                         +
                       </motion.button>
                    </div>
                 </div>
+
+                {game.version === 2 && (
+                  <div className="bg-slate-800 p-6 rounded-[32px] border border-white/5 flex flex-col gap-4 shadow-inner">
+                    <div className="flex items-center justify-between px-2">
+                       <motion.button 
+                         whileTap={{ scale: 0.85 }}
+                         onClick={() => setGame(prev => ({ 
+                           ...prev, 
+                           impostorCount: prev.impostorCount === -1 ? 1 : Math.max(1, prev.impostorCount - 1) 
+                         }))}
+                         className="w-12 h-12 rounded-xl bg-slate-700 flex items-center justify-center text-2xl font-black text-white"
+                       >
+                         -
+                       </motion.button>
+                       <div className="flex flex-col items-center">
+                         <span className="text-4xl font-black text-primary leading-none">
+                           {game.impostorCount === -1 ? '?' : game.impostorCount}
+                         </span>
+                         <span className="text-[9px] font-black text-slate-500 mt-1 uppercase tracking-widest">Impostores</span>
+                       </div>
+                       <motion.button 
+                         whileTap={{ scale: 0.85 }}
+                         onClick={() => setGame(prev => ({ 
+                           ...prev, 
+                           impostorCount: prev.impostorCount >= Math.floor(game.playerCount / 2) ? -1 : prev.impostorCount + 1 
+                         }))}
+                         className="w-12 h-12 rounded-xl bg-slate-700 flex items-center justify-center text-2xl font-black text-white"
+                       >
+                         +
+                       </motion.button>
+                    </div>
+                    {game.impostorCount === -1 && (
+                      <p className="text-[8px] font-black text-primary uppercase tracking-widest">Modo Aleatório Ativado</p>
+                    )}
+                  </div>
+                )}
               </div>
 
               <motion.button 
@@ -380,40 +561,286 @@ export default function App() {
               initial="initial"
               animate="animate"
               exit="exit"
-              className="space-y-12 flex flex-col items-center text-center py-4"
+              className="space-y-8 flex flex-col items-center text-center py-4"
             >
               <div className="w-20 h-20 bg-primary/20 rounded-full flex items-center justify-center shadow-[0_0_40px_rgba(255,0,0,0.2)] border border-primary/40 relative">
                 <Target className="w-10 h-10 text-primary animate-pulse" />
                 <div className="absolute inset-0 border-2 border-primary/20 rounded-full animate-ping" />
               </div>
               
-              <div className="space-y-8">
-                <h1 className="text-5xl font-black uppercase italic tracking-tighter leading-tight">DESCUBRA O<br/><span className="text-primary underline decoration-white underline-offset-8">IMPOSTOR</span></h1>
+              <div className="space-y-4">
+                <h1 className="text-4xl font-black uppercase italic tracking-tighter leading-tight">INVESTIGAÇÃO<br/><span className="text-primary underline decoration-white underline-offset-8">EM CURSO</span></h1>
                 
-                <div className="flex flex-col gap-3 text-left">
-                  {[
-                    "OBSERVE CADA DETALHE DO RELATO.",
-                    "ANALISE COM INTELIGÊNCIA AS RESPOSTAS.",
-                    "DESCONFIE DE TODOS. SOBREVIVA."
-                   ].map((step, i) => (
-                    <div key={i} className="flex gap-4 items-center bg-slate-900 p-5 rounded-[24px] border border-white/5">
-                      <span className="bg-primary text-white w-8 h-8 rounded-xl flex-shrink-0 flex items-center justify-center font-black italic">
-                         {i+1}
-                      </span>
-                      <p className="text-slate-300 text-[10px] font-black uppercase tracking-tight leading-none">{step}</p>
-                    </div>
-                  ))}
+                {game.version === 2 && (
+                   <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                     Vivos: {game.players.filter(p => p.isAlive).length} | Infiltrados: {game.players.filter(p => p.isAlive && p.role === 'IMPOSTOR').length}
+                   </p>
+                )}
+              </div>
+
+              {game.version === 2 ? (
+                <div className="w-full space-y-4">
+                   <motion.button 
+                    whileTap={{ scale: 0.96 }}
+                    onClick={() => setGame(prev => ({ ...prev, phase: 'vote' }))}
+                    className="w-full bg-primary py-6 rounded-2xl font-black flex items-center justify-center gap-3 shadow-2xl text-lg uppercase tracking-widest border-b-4 border-black/30"
+                  >
+                    <Megaphone className="w-6 h-6 animate-bounce" />
+                    REUNIÃO DE EMERGÊNCIA
+                  </motion.button>
+                   <p className="text-[9px] font-bold text-slate-400 leading-relaxed uppercase tracking-tight italic">
+                    Pressione quando estiver pronto para expulsar um suspeito.
+                  </p>
+                </div>
+              ) : (
+                <div className="w-full space-y-6">
+                  <div className="flex flex-col gap-3 text-left">
+                    {[
+                      "OBSERVE CADA DETALHE DO RELATO.",
+                      "ANALISE COM INTELIGÊNCIA AS RESPOSTAS.",
+                      "DESCONFIE DE TODOS. SOBREVIVA."
+                     ].map((step, i) => (
+                      <div key={i} className="flex gap-4 items-center bg-slate-900 p-5 rounded-[24px] border border-white/5">
+                        <span className="bg-primary text-white w-8 h-8 rounded-xl flex-shrink-0 flex items-center justify-center font-black italic">
+                           {i+1}
+                        </span>
+                        <p className="text-slate-300 text-[10px] font-black uppercase tracking-tight leading-none">{step}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <motion.button 
+                    whileTap={{ scale: 0.96 }}
+                    onClick={resetGame}
+                    className="w-full bg-primary py-6 rounded-2xl font-black flex items-center justify-center gap-3 shadow-2xl text-lg uppercase tracking-widest"
+                  >
+                    <RefreshCcw className="w-6 h-6" />
+                    REINICIAR BUSCA
+                  </motion.button>
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {game.phase === 'vote' && (
+            <motion.div
+              key="vote"
+              variants={stageVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="space-y-6 flex flex-col items-center text-center w-full"
+            >
+              <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center border border-primary/20">
+                <Users className="w-8 h-8 text-primary" />
+              </div>
+              
+              <div>
+                <h2 className="text-2xl font-black italic uppercase tracking-tight">Votação</h2>
+                <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest opacity-60">
+                   {activeVoterId ? `Agente ${activeVoterId}, escolha seu alvo` : "Selecione um agente para votar"}
+                </p>
+              </div>
+
+              {activeVoterId ? (
+                /* Target Selection Grid */
+                <div className="w-full space-y-4">
+                  <div className="grid grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                    {game.players.filter(p => p.isAlive).map((player) => (
+                      <motion.button
+                        key={player.id}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => {
+                          handleVote(activeVoterId, player.id);
+                          setActiveVoterId(null);
+                        }}
+                        className="bg-slate-800 hover:bg-slate-700 border border-white/5 p-4 rounded-2xl flex flex-col items-center gap-2 transition-colors"
+                      >
+                        <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center">
+                          <span className="font-black text-white text-sm">{player.id}</span>
+                        </div>
+                        <span className="text-[10px] font-black text-white uppercase tracking-widest">Alvo #{player.id}</span>
+                      </motion.button>
+                    ))}
+                  </div>
+                  <button 
+                    onClick={() => setActiveVoterId(null)}
+                    className="text-primary text-[10px] font-black uppercase tracking-widest p-2"
+                  >
+                    Voltar
+                  </button>
+                </div>
+              ) : (
+                /* Voter List Grid */
+                <div className="w-full space-y-6">
+                  <div className="grid grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                    {game.players.filter(p => p.isAlive).map((player) => {
+                      // Count current votes FOR this player
+                      const receivedVotes = Object.values(game.playerVotes).filter(vid => vid === player.id).length;
+                      const hasVoted = game.playerVotes[player.id] !== null;
+
+                      return (
+                        <motion.button
+                          key={player.id}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => setActiveVoterId(player.id)}
+                          className={`border p-4 rounded-2xl flex flex-col items-center gap-2 transition-all relative overflow-hidden ${
+                            hasVoted ? 'bg-slate-900 border-accent/20 shadow-[inset_0_0_10px_rgba(0,251,255,0.1)]' : 'bg-slate-800 border-white/5'
+                          }`}
+                        >
+                          {hasVoted && (
+                             <div className="absolute top-0 right-0 p-2">
+                                <ShieldCheck className="w-4 h-4 text-accent" />
+                             </div>
+                          )}
+                          <div className="flex items-center gap-3">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black ${hasVoted ? 'bg-accent text-bg' : 'bg-slate-700 text-white'}`}>
+                              {player.id}
+                            </div>
+                            <AnimatePresence>
+                              {receivedVotes > 0 && (
+                                <motion.div 
+                                  initial={{ scale: 0, x: -10 }}
+                                  animate={{ scale: 1, x: 0 }}
+                                  exit={{ scale: 0 }}
+                                  className="bg-primary text-white text-[10px] font-black px-2 py-1 rounded-lg"
+                                >
+                                  {receivedVotes} {receivedVotes === 1 ? 'VOTO' : 'VOTOS'}
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                          <span className="text-[8px] font-black text-slate-400 mt-1 uppercase tracking-widest">
+                            {hasVoted ? `Indicou: #${game.playerVotes[player.id]}` : 'Clique para votar'}
+                          </span>
+                        </motion.button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="space-y-4 pt-2">
+                    <motion.button 
+                      whileTap={{ scale: Object.values(game.playerVotes).some(v => v === null) ? 1 : 0.96 }}
+                      disabled={Object.values(game.playerVotes).some(v => v === null)}
+                      onClick={handleConfirmVote}
+                      className="w-full bg-primary disabled:opacity-30 disabled:grayscale py-6 rounded-2xl font-black flex items-center justify-center gap-3 shadow-[0_0_30px_rgba(255,0,0,0.3)] text-lg uppercase tracking-widest border-b-4 border-black/30 transition-all text-white"
+                    >
+                      <Rocket className="w-6 h-6" />
+                      CONFIRMAR EXPULSÃO
+                    </motion.button>
+                    
+                    <button 
+                      onClick={() => setGame(prev => ({ ...prev, phase: 'debate' }))}
+                      className="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] p-2 hover:text-white transition-colors"
+                    >
+                      Cancelar e Voltar
+                    </button>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {game.phase === 'ejection' && (
+            <motion.div
+              key="ejection"
+              variants={stageVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="flex flex-col items-center text-center space-y-12 py-10"
+            >
+              <div className="relative w-full h-[150px] flex items-center justify-center overflow-hidden">
+                <motion.div
+                  initial={{ x: -200, rotate: -20 }}
+                  animate={{ x: 500, rotate: 360 }}
+                  transition={{ duration: 3, ease: "linear" }}
+                  className="absolute"
+                >
+                  <div className="flex flex-col items-center gap-2">
+                     <Ghost className={`w-16 h-16 ${game.lastEjected?.role === 'IMPOSTOR' ? 'text-primary' : 'text-accent'}`} />
+                     <span className="text-[8px] font-black text-white uppercase tracking-[0.4em] whitespace-nowrap">Agente #{game.lastEjected?.id}</span>
+                  </div>
+                </motion.div>
+                
+                {/* Stars/Space effect */}
+                <div className="absolute inset-0 z-[-1]">
+                   {[...Array(20)].map((_, i) => (
+                     <div 
+                      key={i} 
+                      className="absolute w-1 h-1 bg-white rounded-full opacity-30 animate-pulse" 
+                      style={{ 
+                        left: `${Math.random() * 100}%`, 
+                        top: `${Math.random() * 100}%`,
+                        animationDelay: `${Math.random() * 2}s`
+                      }} 
+                     />
+                   ))}
                 </div>
               </div>
 
-              <motion.button 
-                whileTap={{ scale: 0.96 }}
-                onClick={resetGame}
-                className="w-full bg-primary py-6 rounded-2xl font-black flex items-center justify-center gap-3 shadow-2xl text-lg uppercase tracking-widest"
-              >
-                <RefreshCcw className="w-6 h-6" />
-                REINICIAR BUSCA
-              </motion.button>
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <h2 className="text-3xl font-black italic uppercase tracking-tighter">
+                    Agente #{game.lastEjected?.id} foi ejetado.
+                  </h2>
+                  <p className={`text-lg font-black uppercase tracking-widest ${game.lastEjected?.role === 'IMPOSTOR' ? 'text-primary' : 'text-accent'}`}>
+                    Ele {game.lastEjected?.role === 'IMPOSTOR' ? 'era o Impostor.' : 'não era o Impostor.'}
+                  </p>
+                </div>
+                
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
+                  Restam {game.players.filter(p => p.isAlive && p.role === 'IMPOSTOR').length} impostores.
+                </p>
+
+                <motion.button 
+                  whileTap={{ scale: 0.96 }}
+                  onClick={() => {
+                    if (game.winner) {
+                      setGame(prev => ({ ...prev, phase: 'gameOver' }));
+                    } else {
+                      setGame(prev => ({ ...prev, phase: 'debate' }));
+                    }
+                  }}
+                  className="w-full bg-white text-bg font-black py-5 rounded-2xl text-lg uppercase tracking-widest transition-all hover:bg-slate-200"
+                >
+                  Continuar Missão
+                </motion.button>
+              </div>
+            </motion.div>
+          )}
+
+          {game.phase === 'gameOver' && (
+            <motion.div
+              key="gameOver"
+              variants={stageVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="flex flex-col items-center text-center space-y-12 py-8"
+            >
+              <div className={`w-24 h-24 rounded-[32px] flex items-center justify-center shadow-2xl relative ${game.winner === 'crew' ? 'bg-accent' : 'bg-primary'}`}>
+                {game.winner === 'crew' ? <Trophy className="w-12 h-12 text-white" /> : <Skull className="w-12 h-12 text-white" />}
+              </div>
+
+              <div className="space-y-4">
+                <h1 className={`text-6xl font-black italic tracking-tighter uppercase leading-none ${game.winner === 'crew' ? 'text-accent' : 'text-primary'}`}>
+                  Vitória da<br/>{game.winner === 'crew' ? 'Tripulação' : 'Invasão'}
+                </h1>
+                <p className="text-slate-400 text-sm font-bold uppercase tracking-widest">
+                  {game.winner === 'crew' ? 'Todos os impostores foram eliminados.' : 'Os impostores tomaram o controle da nave.'}
+                </p>
+              </div>
+
+              <div className="w-full pt-4">
+                <motion.button 
+                  whileTap={{ scale: 0.96 }}
+                  onClick={resetGame}
+                  className="w-full bg-primary/20 border-2 border-primary text-primary font-black py-6 rounded-2xl text-xl uppercase tracking-widest hover:bg-primary hover:text-white transition-all shadow-lg"
+                >
+                  Reiniciar Terminal
+                </motion.button>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
